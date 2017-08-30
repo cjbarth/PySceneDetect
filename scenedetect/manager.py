@@ -30,10 +30,18 @@
 
 # Standard Library Imports
 from __future__ import print_function
+import sys
+import os
+import argparse
+import time
 import csv
 
+# PySceneDetect Library Imports
+import scenedetect
 
-class SceneManager(object):
+# Third-Party Library Imports
+import cv2
+import numpy
 
     # pylint: disable = too-few-public-methods, too-many-instance-attributes
     #
@@ -66,6 +74,8 @@ class SceneManager(object):
     # does make sense (and may work fine with properly designed detection
     # algorithm/method classes).
     #
+class SceneManager(object):
+
     def __init__(self, args, scene_detectors):
         self.scene_list = list()
         self.args = args
@@ -101,11 +111,17 @@ class SceneManager(object):
 
         self.quiet_mode = args.quiet_mode
         self.perf_update_rate = -1
-
+        
         self.stats_writer = None
         if args.stats_file:
             self.stats_writer = csv.writer(args.stats_file)
 
         self.cap = None
+
+        self.force_fps = args.force_fps
+            
+
+
+
 
 

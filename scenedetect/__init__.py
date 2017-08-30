@@ -109,7 +109,7 @@ def detect_scenes_file(path, scene_manager):
     # Print video parameters (resolution, FPS, etc...)
     video_width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     video_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    video_fps    = cap.get(cv2.CAP_PROP_FPS)
+    video_fps    = scene_manager.force_fps or cap.get(cv2.CAP_PROP_FPS)
     if not scene_manager.quiet_mode:
         print('[PySceneDetect] Video Resolution / Framerate: %d x %d / %2.3f FPS' % (
             video_width, video_height, video_fps))
@@ -311,6 +311,7 @@ def main():
 
     # Create new list with scene cuts in milliseconds (original uses exact
     # frame numbers) based on the video's framerate, and then timecodes.
+    print(smgr.__dict__)
     scene_list_msec = [(1000.0 * x) / float(video_fps) for x in smgr.scene_list]
     scene_list_tc = [scenedetect.timecodes.get_string(x) for x in scene_list_msec]
     # Create new lists with scene cuts in seconds, and the length of each scene.
@@ -342,7 +343,6 @@ def main():
 
         # Print CSV separated timecode output for use in other programs.
         timecode_list_str = ','.join(scene_list_tc)
-        print(timecode_list_str)
 
         # Output CSV file containing timecode string and list of scene timecodes.
         if args.csv_out:
@@ -350,6 +350,7 @@ def main():
                               scene_start_sec, scene_len_sec)
 
         if args.output and len(smgr.scene_list) > 0:
+            print(timecode_list_str)
             split_input_video(args.input.name, args.output, timecode_list_str)
     # Cleanup, release all objects and close file handles.
     if args.stats_file:
@@ -365,13 +366,58 @@ def split_input_video(input_path, output_path, timecode_list_str):
     #args.output.close()
     print('[PySceneDetect] Splitting video into clips...')
     ret_val = None
-    try:
-        ret_val = subprocess.call(
-            ['mkvmerge',
+    cmd = ['mkvmerge',
              '-o', output_path,
              '--split', 'timecodes:%s' % timecode_list_str,
-             input_path])
-    except OSError:
+             input_path]
+    last_timecode = '00:00:00.000'
+    for split, timecode in list(enumerate(timecode_list_str.split(','))):
+        previous_timecode = '00:00:00.000'
+        if split > 0:
+            previous_timecode = timecode_list_str.split(',')[split - 1]
+
+        pre, ext = os.path.splitext(output_path)
+        output_file = pre + '-' + str(split).rjust(3, '0') + ext
+        cmd = [
+            'ffmpeg',
+            '-i', input_path,
+            '-ss', previous_timecode,
+            '-to', timecode,
+            '-q', '18',
+            '-crf', '18',
+            '-vcodec', 'libx264',
+            '-acodec', 'copy',
+            output_file
+        ]
+        print('-----')
+        print(' '.join(cmd))
+        print('-----')
+        ret_val = subprocess.call(
+            cmd)
+        last_timecode = timecode
+
+    pre, ext = os.path.splitext(output_path)
+    output_file = pre + '-' + str(len(timecode_list_str.split(','))).rjust(3, '0') + ext
+    cmd = [
+        'ffmpeg',
+        '-i', input_path,
+        '-ss', last_timecode,
+        '-q', '18',
+        '-crf', '18',
+        '-vcodec', 'libx264',
+        '-acodec', 'copy',
+        output_file
+    ]
+    print('-----')
+    print(' '.join(cmd))
+    print('-----')
+    ret_val = subprocess.call(
+        cmd)
+    return
+    try:
+        ret_val = subprocess.call(
+            cmd)
+    except FileNotFoundError:
         print('[PySceneDetect] Error: mkvmerge could not be found on the system.'
               ' Please install mkvmerge to enable video output support.')
     if ret_val is not None:

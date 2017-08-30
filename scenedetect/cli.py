@@ -371,4 +371,10 @@ def get_cli_parser(scene_detectors_list, timecode_formats_list):
                 ' working directory, using the same filename as the input'
                 ' but with the scene and frame numbers appended.'))
 
+    parser.add_argument(
+        '--force-fps', dest = 'force_fps',
+        type=float, default=0,
+        help = ('If set, this value will be used instead of the detected'
+                ' value for the framerate of the video being processed.'))
+
     return parser

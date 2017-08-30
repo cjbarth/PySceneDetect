@@ -27,10 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
+from __future__ import print_function
 # Third-Party Library Imports
 import cv2
 import numpy
-
 
 # Default value for -d / --detector CLI argument (see get_available_detectors()
 # for a list of valid/enabled detection methods and their string equivalents).
@@ -153,6 +153,7 @@ class ThresholdDetector(SceneDetector):
         curr_frame_row = 0
 
         while curr_frame_row < frame.shape[0]:
+            print('.', end='')
             # Add and total the number of individual pixel values (R, G, and B)
             # in the current row block that exceed the threshold. 
             curr_frame_amt += int(
@@ -161,8 +162,10 @@ class ThresholdDetector(SceneDetector):
             # If we've already exceeded the most pixels allowed to be above the
             # threshold, we can skip processing the rest of the pixels. 
             if curr_frame_amt > min_pixels:
+                print(str(curr_frame_amt), end='')
                 return False
             curr_frame_row += self.block_size
+        print(str(curr_frame_amt), end='')
         return True
 
     def process_frame(self, frame_num, frame_img, frame_metrics, scene_list):
@@ -172,7 +175,7 @@ class ThresholdDetector(SceneDetector):
 
         # Value to return indiciating if a scene cut was found or not.
         cut_detected = False
-
+        print('\n' + str(frame_num) + ' ', end='')
         # The metric used here to detect scene breaks is the percent of pixels
         # less than or equal to the threshold; however, since this differs on
         # user-supplied values, we supply the average pixel intensity as this
@@ -187,10 +190,12 @@ class ThresholdDetector(SceneDetector):
 
         if self.last_frame_avg is not None:
             if self.last_fade['type'] == 'in' and self.frame_under_threshold(frame_img):
+                print('-', end='')
                 # Just faded out of a scene, wait for next fade in.
                 self.last_fade['type'] = 'out'
                 self.last_fade['frame'] = frame_num
             elif self.last_fade['type'] == 'out' and not self.frame_under_threshold(frame_img):
+                print('+', end='')
                 # Just faded into a new scene, compute timecode for the scene
                 # split based on the fade bias.
                 f_in = frame_num
@@ -205,6 +210,7 @@ class ThresholdDetector(SceneDetector):
                 self.last_fade['type'] = 'in'
                 self.last_fade['frame'] = frame_num
         else:
+            print('*', end='')
             self.last_fade['frame'] = 0
             if self.frame_under_threshold(frame_img):
                 self.last_fade['type'] = 'out'
@@ -223,14 +229,18 @@ class ThresholdDetector(SceneDetector):
         (since there is no corresponding fade-in) so it will be located at the
         exact frame where the fade-out crossed the detection threshold.
         """
-
+        print('\n')
+        print('done')
+        print(scene_list)
+        print(self.__dict__)
         # If the last fade detected was a fade out, we add a corresponding new
         # scene break to indicate the end of the scene.  This is only done for
         # fade-outs, as a scene cut is already added when a fade-in is found.
-        cut_detected = False
+        cut_detected = len(scene_list) > 0
         if self.last_fade['type'] == 'out' and self.add_final_scene and (
             self.last_scene_cut is None or
             (frame_num - self.last_scene_cut) >= self.min_scene_len):
+            print('cut detected')
             scene_list.append(self.last_fade['frame'])
             cut_detected = True
         return cut_detected
