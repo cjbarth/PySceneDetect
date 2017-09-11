@@ -35,6 +35,7 @@ import os
 import argparse
 import time
 import csv
+import subprocess
 
 # PySceneDetect Library Imports
 import scenedetect
@@ -119,7 +120,27 @@ class SceneManager(object):
         self.cap = None
 
         self.force_fps = args.force_fps
-            
+
+        self.precise_split = args.precise_split
+        self.ffmpeg = argparse.Namespace()
+        if self.precise_split:
+            self.ffmpeg.qscale = args.ffmpeg_qscale
+            self.ffmpeg.vcodec = args.ffmpeg_vcodec
+
+        try:
+            self.has_mkvmerge = subprocess.call(['mkvmerge', '--help']) == 0
+        except subprocess.CalledProcessError:
+            self.has_mkvmerge = False
+        try:
+            self.has_ffmpeg = subprocess.call(['ffmpeg', '--help']) == 0
+        except subprocess.CalledProcessError:
+            self.has_ffmpeg = False
+        try:
+            self.has_avconv = subprocess.call(['avconv', '--help']) == 0
+        except subprocess.CalledProcessError:
+            self.has_avconv = False
+
+
 
 
 

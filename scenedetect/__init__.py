@@ -350,8 +350,8 @@ def main():
                               scene_start_sec, scene_len_sec)
 
         if args.output and len(smgr.scene_list) > 0:
-            print(timecode_list_str)
-            split_input_video(args.input.name, args.output, timecode_list_str)
+            split_input_video(args.input.name, args.output, timecode_list_str, smgr)
+
     # Cleanup, release all objects and close file handles.
     if args.stats_file:
         args.stats_file.close()
@@ -360,72 +360,70 @@ def main():
     return
 
 
-def split_input_video(input_path, output_path, timecode_list_str):
+def split_input_video(input_path, output_path, timecode_list_str, smgr):
     """ Calls the mkvmerge command on the input video, splitting it at the
     passed timecodes, where each scene is written in sequence from 001."""
     #args.output.close()
-    print('[PySceneDetect] Splitting video into clips...')
-    ret_val = None
-    cmd = ['mkvmerge',
-             '-o', output_path,
-             '--split', 'timecodes:%s' % timecode_list_str,
-             input_path]
-    last_timecode = '00:00:00.000'
-    for split, timecode in list(enumerate(timecode_list_str.split(','))):
-        previous_timecode = '00:00:00.000'
-        if split > 0:
-            previous_timecode = timecode_list_str.split(',')[split - 1]
+    splitter = 'mkvmerge'
+    if smgr.ffmpeg:
+        if smgr.has_ffmpeg:
+            splitter = 'ffmpeg'
+        elif smgr.has_avconv:
+            splitter = 'avconv'
+    elif not smgr.has_mkvmerge:
+        print('[PySceneDectect] No available scene splitters; need `mkvmerge`, `ffmpeg`, or `avconv` installed.')
+        return
+
+    print('[PySceneDetect] Splitting video into clips using %s...' % splitter)
+    ret_val = 0
+    if splitter in ['ffmpeg', 'avconv']:
+        last_timecode = '00:00:00.000'
+        for split, timecode in list(enumerate(timecode_list_str.split(','))):
+            previous_timecode = '00:00:00.000'
+            if split > 0:
+                previous_timecode = timecode_list_str.split(',')[split - 1]
+
+            pre, ext = os.path.splitext(output_path)
+            output_file = pre + '-' + str(split).rjust(3, '0') + ext
+            cmd = [
+                splitter
+                '-i', input_path,
+                '-ss', previous_timecode,
+                '-to', timecode,
+                '-q', '18',
+                '-vcodec', smgr.vcodec,
+                '-acodec', 'copy',
+                output_file
+            ]
+            ret_val += subprocess.call(cmd)
+            last_timecode = timecode
 
         pre, ext = os.path.splitext(output_path)
-        output_file = pre + '-' + str(split).rjust(3, '0') + ext
+        output_file = pre + '-' + str(len(timecode_list_str.split(','))).rjust(3, '0') + ext
         cmd = [
-            'ffmpeg',
+            splitter,
             '-i', input_path,
-            '-ss', previous_timecode,
-            '-to', timecode,
+            '-ss', last_timecode,
             '-q', '18',
-            '-crf', '18',
-            '-vcodec', 'libx264',
+            '-vcodec', smgr.vcodec,
             '-acodec', 'copy',
             output_file
         ]
-        print('-----')
-        print(' '.join(cmd))
-        print('-----')
-        ret_val = subprocess.call(
-            cmd)
-        last_timecode = timecode
+    else:
+        cmd = [
+            splitter,
+           '-o', output_path,
+           '--split', 'timecodes:%s' % timecode_list_str,
+           input_path
+        ]
 
-    pre, ext = os.path.splitext(output_path)
-    output_file = pre + '-' + str(len(timecode_list_str.split(','))).rjust(3, '0') + ext
-    cmd = [
-        'ffmpeg',
-        '-i', input_path,
-        '-ss', last_timecode,
-        '-q', '18',
-        '-crf', '18',
-        '-vcodec', 'libx264',
-        '-acodec', 'copy',
-        output_file
-    ]
-    print('-----')
-    print(' '.join(cmd))
-    print('-----')
-    ret_val = subprocess.call(
-        cmd)
-    return
-    try:
-        ret_val = subprocess.call(
-            cmd)
-    except FileNotFoundError:
-        print('[PySceneDetect] Error: mkvmerge could not be found on the system.'
-              ' Please install mkvmerge to enable video output support.')
-    if ret_val is not None:
-        if ret_val != 0:
-            print('[PySceneDetect] Error splitting video '
-                  '(mkvmerge returned %d).' % ret_val)
-        else:
-            print('[PySceneDetect] Finished writing scenes to output.')
+    ret_val += subprocess.call(cmd)
+
+    if ret_val != 0:
+        print('[PySceneDetect] Error splitting video '
+              '(got code %d).' % ret_val)
+    else:
+        print('[PySceneDetect] Finished writing scenes to output.')
 
 
 def output_scene_list(csv_file, smgr, scene_list_tc, scene_start_sec,

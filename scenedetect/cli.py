@@ -377,4 +377,23 @@ def get_cli_parser(scene_detectors_list, timecode_formats_list):
         help = ('If set, this value will be used instead of the detected'
                 ' value for the framerate of the video being processed.'))
 
+    parser.add_argument(
+        '--precise-split', dest = 'precise_split',
+        action = 'store_true', default = False,
+        help = ('If set, splits will occur at the calculated split moment'
+                ' instead of the nearest keyframe. This is only possible'
+                ' if the video is recompressed during splitting.'))
+
+    parser.add_argument(
+        '--qscale', dest = 'ffmepg_qscale',
+        typ = int_type_check(0, 20, 'ffmepg_qscale'), default = 18,
+        help = ('The variable bit-rate quality to use when compressing video.'
+                ' This is only used when --precise-split is set.'))
+
+    parser.add_argument(
+        '--vcodec', dest = 'ffmepg_vcodec',
+        typ = str, default='libx264',
+        help = ('The codec to use when compressing video.'
+                ' This is only used when --precise-split is set.'))
+
     return parser
